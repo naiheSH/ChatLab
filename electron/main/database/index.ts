@@ -18,6 +18,7 @@ export {
   getMemberNameHistory,
   getRepeatAnalysis,
   getCatchphraseAnalysis,
+  getNightOwlAnalysis,
 } from './analysis'
 
 // 类型导出

@@ -141,6 +141,95 @@ export interface WeekdayActivity {
   messageCount: number
 }
 
+// ==================== 夜猫分析类型 ====================
+
+/**
+ * 夜猫称号等级
+ */
+export type NightOwlTitle =
+  | '养生达人'
+  | '偶尔失眠'
+  | '夜猫子'
+  | '秃头预备役'
+  | '修仙练习生'
+  | '守夜冠军'
+  | '不睡觉の神'
+
+/**
+ * 修仙排行榜项
+ */
+export interface NightOwlRankItem {
+  memberId: number
+  platformId: string
+  name: string
+  totalNightMessages: number // 深夜发言总数
+  title: NightOwlTitle // 称号
+  hourlyBreakdown: {
+    // 各时段分布
+    h23: number // 23:00-24:00
+    h0: number // 00:00-01:00
+    h1: number // 01:00-02:00
+    h2: number // 02:00-03:00
+    h3to4: number // 03:00-05:00
+  }
+  percentage: number // 占该用户总发言的百分比
+}
+
+/**
+ * 最晚/最早发言排行项
+ */
+export interface TimeRankItem {
+  memberId: number
+  platformId: string
+  name: string
+  count: number // 成为最晚/最早发言者的次数
+  avgTime: string // 平均时间，格式 "HH:MM"
+  extremeTime: string // 最极端时间，格式 "HH:MM"
+  percentage: number // 占总天数的百分比
+}
+
+/**
+ * 连续修仙记录
+ */
+export interface ConsecutiveNightRecord {
+  memberId: number
+  platformId: string
+  name: string
+  maxConsecutiveDays: number // 最长连续修仙天数
+  currentStreak: number // 当前连续天数（如果还在持续）
+}
+
+/**
+ * 修仙王者项（综合排名）
+ */
+export interface NightOwlChampion {
+  memberId: number
+  platformId: string
+  name: string
+  score: number // 综合得分
+  nightMessages: number // 深夜发言数
+  lastSpeakerCount: number // 最晚下班次数
+  consecutiveDays: number // 最长连续天数
+}
+
+/**
+ * 夜猫分析完整结果
+ */
+export interface NightOwlAnalysis {
+  /** 修仙排行榜 */
+  nightOwlRank: NightOwlRankItem[]
+  /** 最晚下班排名 */
+  lastSpeakerRank: TimeRankItem[]
+  /** 最早上班排名 */
+  firstSpeakerRank: TimeRankItem[]
+  /** 连续修仙记录 */
+  consecutiveRecords: ConsecutiveNightRecord[]
+  /** 修仙王者（综合排名） */
+  champions: NightOwlChampion[]
+  /** 统计的总天数 */
+  totalDays: number
+}
+
 /**
  * 分析会话信息（用于会话列表展示）
  */

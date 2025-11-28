@@ -405,6 +405,28 @@ const mainIpcMain = (win: BrowserWindow) => {
       }
     }
   )
+
+  /**
+   * 获取夜猫分析数据
+   */
+  ipcMain.handle(
+    'chat:getNightOwlAnalysis',
+    async (_, sessionId: string, filter?: { startTs?: number; endTs?: number }) => {
+      try {
+        return database.getNightOwlAnalysis(sessionId, filter)
+      } catch (error) {
+        console.error('获取夜猫分析失败：', error)
+        return {
+          nightOwlRank: [],
+          lastSpeakerRank: [],
+          firstSpeakerRank: [],
+          consecutiveRecords: [],
+          champions: [],
+          totalDays: 0,
+        }
+      }
+    }
+  )
 }
 
 export default mainIpcMain

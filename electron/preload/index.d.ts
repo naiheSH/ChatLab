@@ -10,6 +10,7 @@ import type {
   ImportProgress,
   RepeatAnalysis,
   CatchphraseAnalysis,
+  NightOwlAnalysis,
 } from '../../src/types/chat'
 
 interface TimeFilter {
@@ -39,6 +40,7 @@ interface ChatApi {
   onImportProgress: (callback: (progress: ImportProgress) => void) => () => void
   getRepeatAnalysis: (sessionId: string, filter?: TimeFilter) => Promise<RepeatAnalysis>
   getCatchphraseAnalysis: (sessionId: string, filter?: TimeFilter) => Promise<CatchphraseAnalysis>
+  getNightOwlAnalysis: (sessionId: string, filter?: TimeFilter) => Promise<NightOwlAnalysis>
 }
 
 interface Api {

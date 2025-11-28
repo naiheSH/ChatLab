@@ -11,6 +11,7 @@ import type {
   ImportProgress,
   RepeatAnalysis,
   CatchphraseAnalysis,
+  NightOwlAnalysis,
 } from '../../src/types/chat'
 
 // Custom APIs for renderer
@@ -178,6 +179,16 @@ const chatApi = {
     filter?: { startTs?: number; endTs?: number }
   ): Promise<CatchphraseAnalysis> => {
     return ipcRenderer.invoke('chat:getCatchphraseAnalysis', sessionId, filter)
+  },
+
+  /**
+   * 获取夜猫分析数据
+   */
+  getNightOwlAnalysis: (
+    sessionId: string,
+    filter?: { startTs?: number; endTs?: number }
+  ): Promise<NightOwlAnalysis> => {
+    return ipcRenderer.invoke('chat:getNightOwlAnalysis', sessionId, filter)
   },
 }
 
