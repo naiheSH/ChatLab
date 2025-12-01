@@ -80,7 +80,8 @@ function createDatabase(sessionId: string): Database.Database {
     CREATE TABLE IF NOT EXISTS member (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       platform_id TEXT NOT NULL UNIQUE,
-      name TEXT NOT NULL
+      name TEXT NOT NULL,
+      nickname TEXT
     );
 
     CREATE TABLE IF NOT EXISTS member_name_history (
@@ -165,7 +166,7 @@ export async function streamImport(filePath: string, requestId: string): Promise
     INSERT INTO meta (name, platform, type, imported_at) VALUES (?, ?, ?, ?)
   `)
   const insertMember = db.prepare(`
-    INSERT OR IGNORE INTO member (platform_id, name) VALUES (?, ?)
+    INSERT OR IGNORE INTO member (platform_id, name, nickname) VALUES (?, ?, ?)
   `)
   const getMemberId = db.prepare(`SELECT id FROM member WHERE platform_id = ?`)
   const insertMessage = db.prepare(`
@@ -209,7 +210,7 @@ export async function streamImport(filePath: string, requestId: string): Promise
       onMembers: (members: ParsedMember[]) => {
         console.log(`[StreamImport] 收到 ${members.length} 个成员`)
         for (const member of members) {
-          insertMember.run(member.platformId, member.name)
+          insertMember.run(member.platformId, member.name, member.nickname || null)
           const row = getMemberId.get(member.platformId) as { id: number } | undefined
           if (row) {
             memberIdMap.set(member.platformId, row.id)
@@ -236,7 +237,7 @@ export async function streamImport(filePath: string, requestId: string): Promise
           // 确保成员存在
           if (!memberIdMap.has(msg.senderPlatformId)) {
             const memberName = msg.senderName || msg.senderPlatformId
-            insertMember.run(msg.senderPlatformId, memberName)
+            insertMember.run(msg.senderPlatformId, memberName, null)
             const row = getMemberId.get(msg.senderPlatformId) as { id: number } | undefined
             if (row) {
               memberIdMap.set(msg.senderPlatformId, row.id)

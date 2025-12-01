@@ -1,15 +1,19 @@
 /**
  * shuakami/qq-chat-exporter V4 格式解析器
  * 适配项目: https://github.com/shuakami/qq-chat-exporter
- * 版本: V4.x
+ * 版本: V4.x (2024年12月更新)
  *
  * 特征：
- * - 时间戳使用 ISO 字符串格式（如 "2017-12-30T03:24:36.000Z"）
+ * - 时间戳使用 ISO 字符串格式（如 "2022-10-29T06:42:53.000Z"）
  * - metadata.version 为 "4.x.x"
- * - sender 中有 uid 字段
+ * - rawMessage 中包含 sendNickName（QQ昵称）、sendMemberName（群昵称）
  *
- * 注意：此解析器仅适配 shuakami/qq-chat-exporter 项目导出的格式，
- * 其他 QQ 聊天记录导出工具可能需要创建独立的解析器。
+ * 名字字段说明：
+ * - sendNickName: QQ原始昵称（始终存在）
+ * - sendMemberName: 群昵称（可选，用户未设置时不存在）
+ * - sendRemarkName: 导出者的备注名（不使用）
+ *
+ * 显示名优先级: sendMemberName > sendNickName
  */
 
 import * as fs from 'fs'
@@ -36,7 +40,7 @@ export const feature: FormatFeature = {
   id: 'shuakami-qq-exporter-v4',
   name: 'shuakami/qq-chat-exporter V4',
   platform: ChatPlatform.QQ,
-  priority: 10, // 高优先级
+  priority: 10,
   extensions: ['.json'],
   signatures: {
     head: [/QQChatExporter V4/, /"version"\s*:\s*"4\./],
@@ -45,6 +49,14 @@ export const feature: FormatFeature = {
 }
 
 // ==================== 消息结构 ====================
+
+interface V4RawMessage {
+  senderUin?: string
+  senderUid?: string
+  sendNickName?: string // QQ原始昵称
+  sendMemberName?: string // 群昵称
+  msgTime?: string // 秒级时间戳字符串
+}
 
 interface V4Message {
   messageId?: string
@@ -63,7 +75,17 @@ interface V4Message {
     raw?: string
     resources?: Array<{ type: string }>
     elements?: Array<{ type: string }>
+    emojis?: Array<{ type: string }>
   }
+  rawMessage?: V4RawMessage
+}
+
+// ==================== 成员信息追踪 ====================
+
+interface MemberInfo {
+  platformId: string
+  displayName: string // 显示名（sendMemberName || sendNickName）
+  nickname: string // QQ原始昵称（sendNickName）
 }
 
 // ==================== 消息类型转换 ====================
@@ -85,13 +107,9 @@ function convertMessageType(messageType: number | undefined, content: V4Message[
     }
   }
 
-  // 检查元素类型
-  if (content.elements) {
-    for (const elem of content.elements) {
-      if (elem.type === 'market_face' || elem.type === 'face') {
-        return MessageType.EMOJI
-      }
-    }
+  // 检查 emojis 字段
+  if (content.emojis && content.emojis.length > 0) {
+    return MessageType.EMOJI
   }
 
   // 根据 messageType 判断
@@ -99,11 +117,13 @@ function convertMessageType(messageType: number | undefined, content: V4Message[
     case 1:
       return MessageType.TEXT
     case 2:
-      return MessageType.IMAGE
+      return MessageType.TEXT // 普通消息
     case 3:
-      return MessageType.VOICE
+      return MessageType.IMAGE
     case 7:
       return MessageType.VIDEO
+    case 9:
+      return MessageType.TEXT // 回复消息
     default:
       return MessageType.TEXT
   }
@@ -146,7 +166,7 @@ async function* parseV4(options: ParseOptions): AsyncGenerator<ParseEvent, void,
   yield { type: 'meta', data: meta }
 
   // 收集成员和消息
-  const memberMap = new Map<string, ParsedMember>()
+  const memberMap = new Map<string, MemberInfo>()
   let messageBatch: ParsedMessage[] = []
 
   // 流式解析
@@ -160,15 +180,31 @@ async function* parseV4(options: ParseOptions): AsyncGenerator<ParseEvent, void,
     const pipeline = chain([readStream, parser(), pick({ filter: /^messages\.\d+$/ }), streamValues()])
 
     const processMessage = (msg: V4Message): ParsedMessage | null => {
-      // 获取 platformId
-      const platformId = msg.sender.uin || msg.sender.uid
+      // 获取 platformId：优先使用 uin（QQ号），fallback 到 uid
+      const platformId = msg.sender.uin || msg.sender.uid || msg.rawMessage?.senderUin || msg.rawMessage?.senderUid
       if (!platformId) return null
 
-      // 获取发送者名称
-      const senderName = msg.sender.name || platformId
+      // 从 rawMessage 获取名字信息
+      const raw = msg.rawMessage
+      const sendNickName = raw?.sendNickName || msg.sender.name || platformId
+      const sendMemberName = raw?.sendMemberName
 
-      // 更新成员
-      memberMap.set(platformId, { platformId, name: senderName })
+      // 显示名优先级：群昵称 > QQ昵称
+      const displayName = sendMemberName || sendNickName
+
+      // 更新成员信息（保留最新的名字）
+      const existingMember = memberMap.get(platformId)
+      if (!existingMember) {
+        memberMap.set(platformId, {
+          platformId,
+          displayName,
+          nickname: sendNickName,
+        })
+      } else {
+        // 更新为最新的名字
+        existingMember.displayName = displayName
+        existingMember.nickname = sendNickName
+      }
 
       // 解析时间戳
       const timestamp = parseTimestamp(msg.timestamp)
@@ -185,7 +221,7 @@ async function* parseV4(options: ParseOptions): AsyncGenerator<ParseEvent, void,
 
       return {
         senderPlatformId: platformId,
-        senderName,
+        senderName: displayName, // 用于昵称历史追踪
         timestamp,
         type,
         content: textContent || null,
@@ -229,8 +265,13 @@ async function* parseV4(options: ParseOptions): AsyncGenerator<ParseEvent, void,
     pipeline.on('error', reject)
   })
 
-  // 发送成员
-  yield { type: 'members', data: Array.from(memberMap.values()) }
+  // 发送成员（包含 nickname）
+  const members: ParsedMember[] = Array.from(memberMap.values()).map((m) => ({
+    platformId: m.platformId,
+    name: m.displayName,
+    nickname: m.nickname,
+  }))
+  yield { type: 'members', data: members }
 
   // 分批发送消息
   for (let i = 0; i < messageBatch.length; i += batchSize) {

@@ -5,6 +5,7 @@
 
 import { FormatSniffer, createSniffer } from './sniffer'
 import { formats } from './formats'
+import { getFileSize } from './utils'
 import type {
   ParseOptions,
   ParseEvent,

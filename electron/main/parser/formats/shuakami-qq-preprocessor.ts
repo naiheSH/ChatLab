@@ -11,7 +11,7 @@ import * as path from 'path'
 import * as os from 'os'
 import { parser } from 'stream-json'
 import { pick } from 'stream-json/filters/Pick'
-import { streamArray } from 'stream-json/streamers/StreamArray'
+import { streamValues } from 'stream-json/streamers/StreamValues'
 import { chain } from 'stream-chain'
 import type { ParseProgress, Preprocessor } from '../types'
 import { getFileSize, createProgress } from '../utils'
@@ -53,11 +53,19 @@ interface SlimQQMessage {
     text: string
     elements?: Array<{ type: string }>
     resources?: Array<{ type: string }>
+    emojis?: Array<{ type: string }>
   }
   recalled?: boolean
   isRecalled?: boolean
   system?: boolean
   isSystemMessage?: boolean
+  // V4 新增：保留 rawMessage 中的名字字段
+  rawMessage?: {
+    sendNickName?: string
+    sendMemberName?: string
+    senderUin?: string
+    senderUid?: string
+  }
 }
 
 /**
@@ -66,6 +74,7 @@ interface SlimQQMessage {
 function slimMessage(msg: Record<string, unknown>): SlimQQMessage {
   const sender = msg.sender as { uin?: string; uid?: string; name?: string } | undefined
   const content = msg.content as Record<string, unknown> | undefined
+  const rawMessage = msg.rawMessage as Record<string, unknown> | undefined
 
   const slimContent: SlimQQMessage['content'] = {
     text: (content?.text as string) || '',
@@ -80,6 +89,12 @@ function slimMessage(msg: Record<string, unknown>): SlimQQMessage {
   if (content?.resources && Array.isArray(content.resources)) {
     slimContent.resources = (content.resources as Array<{ type: string }>).map((r) => ({
       type: r.type,
+    }))
+  }
+
+  if (content?.emojis && Array.isArray(content.emojis)) {
+    slimContent.emojis = (content.emojis as Array<{ type: string }>).map((e) => ({
+      type: e.type,
     }))
   }
 
@@ -104,6 +119,15 @@ function slimMessage(msg: Record<string, unknown>): SlimQQMessage {
   // sender 字段
   if (sender?.uin) slimMsg.sender.uin = sender.uin
   if (sender?.uid) slimMsg.sender.uid = sender.uid
+
+  // V4 新增：保留 rawMessage 中的关键名字字段
+  if (rawMessage) {
+    slimMsg.rawMessage = {}
+    if (rawMessage.sendNickName) slimMsg.rawMessage.sendNickName = rawMessage.sendNickName as string
+    if (rawMessage.sendMemberName) slimMsg.rawMessage.sendMemberName = rawMessage.sendMemberName as string
+    if (rawMessage.senderUin) slimMsg.rawMessage.senderUin = rawMessage.senderUin as string
+    if (rawMessage.senderUid) slimMsg.rawMessage.senderUid = rawMessage.senderUid as string
+  }
 
   return slimMsg
 }
@@ -173,11 +197,12 @@ async function preprocessQQJson(inputPath: string, onProgress?: (progress: Parse
 
       const header = { metadata, chatInfo, messages: [] }
       const headerJson = JSON.stringify(header)
-      writeStream.write(headerJson.slice(0, -3) + '\n')
+      // 移除最后的 ]} 保留 [，结果如 {"metadata":...,"chatInfo":...,"messages":[
+      writeStream.write(headerJson.slice(0, -2) + '\n')
 
       let isFirstMessage = true
 
-      const pipeline = chain([readStream, parser(), pick({ filter: /^messages\.\d+$/ }), streamArray()])
+      const pipeline = chain([readStream, parser(), pick({ filter: /^messages\.\d+$/ }), streamValues()])
 
       pipeline.on('data', ({ value }: { value: Record<string, unknown> }) => {
         const slimMsg = slimMessage(value)

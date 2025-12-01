@@ -79,7 +79,8 @@ export interface DbMeta {
 export interface DbMember {
   id: number // 自增ID
   platform_id: string // 平台标识（QQ号等）
-  name: string // 最新昵称
+  name: string // 最新显示昵称（群昵称优先）
+  nickname: string | null // QQ原始昵称
 }
 
 /**
@@ -100,7 +101,8 @@ export interface DbMessage {
  */
 export interface ParsedMember {
   platformId: string // 平台标识
-  name: string // 昵称
+  name: string // 显示昵称（群昵称优先，否则QQ昵称）
+  nickname?: string // QQ原始昵称（sendNickName）
 }
 
 /**

@@ -78,7 +78,8 @@ function createDatabase(sessionId: string): Database.Database {
     CREATE TABLE IF NOT EXISTS member (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       platform_id TEXT NOT NULL UNIQUE,
-      name TEXT NOT NULL
+      name TEXT NOT NULL,
+      nickname TEXT
     );
 
     CREATE TABLE IF NOT EXISTS member_name_history (
@@ -148,7 +149,7 @@ export function importData(parseResult: ParseResult): string {
       )
 
       const insertMember = db.prepare(`
-        INSERT OR IGNORE INTO member (platform_id, name) VALUES (?, ?)
+        INSERT OR IGNORE INTO member (platform_id, name, nickname) VALUES (?, ?, ?)
       `)
       const getMemberId = db.prepare(`
         SELECT id FROM member WHERE platform_id = ?
@@ -157,7 +158,7 @@ export function importData(parseResult: ParseResult): string {
       const memberIdMap = new Map<string, number>()
 
       for (const member of parseResult.members) {
-        insertMember.run(member.platformId, member.name)
+        insertMember.run(member.platformId, member.name, member.nickname || null)
         const row = getMemberId.get(member.platformId) as { id: number }
         memberIdMap.set(member.platformId, row.id)
       }
