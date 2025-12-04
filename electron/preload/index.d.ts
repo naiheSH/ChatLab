@@ -278,6 +278,31 @@ interface AgentApi {
   abort: (requestId: string) => Promise<{ success: boolean; error?: string }>
 }
 
+// Cache API 类型
+interface CacheDirectoryInfo {
+  id: string
+  name: string
+  description: string
+  path: string
+  icon: string
+  canClear: boolean
+  size: number
+  fileCount: number
+  exists: boolean
+}
+
+interface CacheInfo {
+  baseDir: string
+  directories: CacheDirectoryInfo[]
+  totalSize: number
+}
+
+interface CacheApi {
+  getInfo: () => Promise<CacheInfo>
+  clear: (cacheId: string) => Promise<{ success: boolean; error?: string; message?: string }>
+  openDir: (cacheId: string) => Promise<{ success: boolean; error?: string }>
+}
+
 declare global {
   interface Window {
     electron: ElectronAPI
@@ -287,6 +312,7 @@ declare global {
     aiApi: AiApi
     llmApi: LlmApi
     agentApi: AgentApi
+    cacheApi: CacheApi
   }
 }
 
@@ -297,6 +323,7 @@ export {
   AiApi,
   LlmApi,
   AgentApi,
+  CacheApi,
   SearchMessageResult,
   AIConversation,
   AIMessage,
@@ -309,4 +336,6 @@ export {
   AgentStreamChunk,
   AgentResult,
   ToolContext,
+  CacheDirectoryInfo,
+  CacheInfo,
 }

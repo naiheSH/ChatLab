@@ -797,6 +797,48 @@ const agentApi = {
   },
 }
 
+// Cache API - 缓存管理
+interface CacheDirectoryInfo {
+  id: string
+  name: string
+  description: string
+  path: string
+  icon: string
+  canClear: boolean
+  size: number
+  fileCount: number
+  exists: boolean
+}
+
+interface CacheInfo {
+  baseDir: string
+  directories: CacheDirectoryInfo[]
+  totalSize: number
+}
+
+const cacheApi = {
+  /**
+   * 获取所有缓存目录信息
+   */
+  getInfo: (): Promise<CacheInfo> => {
+    return ipcRenderer.invoke('cache:getInfo')
+  },
+
+  /**
+   * 清理指定缓存目录
+   */
+  clear: (cacheId: string): Promise<{ success: boolean; error?: string; message?: string }> => {
+    return ipcRenderer.invoke('cache:clear', cacheId)
+  },
+
+  /**
+   * 在文件管理器中打开缓存目录
+   */
+  openDir: (cacheId: string): Promise<{ success: boolean; error?: string }> => {
+    return ipcRenderer.invoke('cache:openDir', cacheId)
+  },
+}
+
 // 扩展 api，添加 dialog 功能
 const extendedApi = {
   ...api,
@@ -819,6 +861,7 @@ if (process.contextIsolated) {
     contextBridge.exposeInMainWorld('aiApi', aiApi)
     contextBridge.exposeInMainWorld('llmApi', llmApi)
     contextBridge.exposeInMainWorld('agentApi', agentApi)
+    contextBridge.exposeInMainWorld('cacheApi', cacheApi)
   } catch (error) {
     console.error(error)
   }
@@ -837,4 +880,6 @@ if (process.contextIsolated) {
   window.llmApi = llmApi
   // @ts-ignore (define in dts)
   window.agentApi = agentApi
+  // @ts-ignore (define in dts)
+  window.cacheApi = cacheApi
 }

@@ -40,8 +40,8 @@ function handleStop() {
 </script>
 
 <template>
-  <div class="shrink-0 border-t border-gray-200 p-4 dark:border-gray-800">
-    <div class="mx-auto max-w-2xl">
+  <div class="shrink-0 border-t border-gray-200 py-4 dark:border-gray-800">
+    <div class="w-full">
       <UChatPrompt
         v-model="inputValue"
         :placeholder="placeholder || '输入你的问题...'"

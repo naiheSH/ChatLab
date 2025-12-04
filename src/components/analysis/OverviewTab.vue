@@ -229,42 +229,29 @@ const weekdayVsWeekend = computed(() => {
     <!-- 群聊身份卡 -->
     <div class="relative overflow-hidden rounded-3xl bg-pink-500 p-8 text-white shadow-xl">
       <div class="relative">
-        <div class="flex items-start justify-between">
-          <div>
-            <div class="flex items-center gap-3">
-              <h2 class="text-3xl font-black tracking-tight">{{ session.name }}</h2>
-              <span class="rounded-full bg-white/20 px-3 py-1 text-xs font-medium backdrop-blur-md">
-                {{ session.platform.toUpperCase() }}
-              </span>
-            </div>
-            <p class="mt-2 text-lg text-white/90 font-medium">
-              {{ session.memberCount > 2 ? '群聊' : '私聊' }} ·
-              <span class="opacity-80">数据分析报告</span>
-            </p>
+        <div>
+          <div class="flex items-center gap-3">
+            <h2 class="text-3xl font-black tracking-tight">{{ session.name }}</h2>
+            <span class="rounded-full bg-white/20 px-3 py-1 text-xs font-medium backdrop-blur-md">
+              {{ session.platform.toUpperCase() }}
+            </span>
           </div>
-          <div
-            class="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/20 shadow-lg backdrop-blur-md ring-1 ring-white/30"
-          >
-            <UIcon name="i-heroicons-chat-bubble-left-right" class="h-7 w-7 text-white" />
-          </div>
+          <p class="mt-2 text-lg text-white/90 font-medium">
+            {{ session.memberCount > 2 ? '群聊' : '私聊' }} ·
+            <span class="opacity-80">数据分析报告</span>
+          </p>
         </div>
 
         <div class="mt-8 grid grid-cols-3 gap-6">
-          <div
-            class="group rounded-2xl bg-white/10 px-6 py-4 backdrop-blur-md transition-all hover:bg-white/15 hover:scale-[1.02]"
-          >
+          <div class="rounded-2xl bg-white/10 px-6 py-4 backdrop-blur-md">
             <p class="text-3xl font-black tracking-tight">{{ displayMessageCount.toLocaleString() }}</p>
             <p class="mt-1 text-sm font-medium text-white/70">{{ selectedYear ? '筛选消息' : '消息总数' }}</p>
           </div>
-          <div
-            class="group rounded-2xl bg-white/10 px-6 py-4 backdrop-blur-md transition-all hover:bg-white/15 hover:scale-[1.02]"
-          >
+          <div class="rounded-2xl bg-white/10 px-6 py-4 backdrop-blur-md">
             <p class="text-3xl font-black tracking-tight">{{ displayMemberCount.toLocaleString() }}</p>
             <p class="mt-1 text-sm font-medium text-white/70">{{ selectedYear ? '活跃成员' : '成员总数' }}</p>
           </div>
-          <div
-            class="group rounded-2xl bg-white/10 px-6 py-4 backdrop-blur-md transition-all hover:bg-white/15 hover:scale-[1.02]"
-          >
+          <div class="rounded-2xl bg-white/10 px-6 py-4 backdrop-blur-md">
             <p class="text-3xl font-black tracking-tight">{{ durationDays }}</p>
             <p class="mt-1 text-sm font-medium text-white/70">跨度天数</p>
           </div>

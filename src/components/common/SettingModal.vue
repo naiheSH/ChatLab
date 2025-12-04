@@ -2,6 +2,7 @@
 import { ref, watch } from 'vue'
 import AIConfigTab from './settings/AIConfigTab.vue'
 import AIChatConfigTab from './settings/AIChatConfigTab.vue'
+import CacheManageTab from './settings/CacheManageTab.vue'
 
 // Props
 const props = defineProps<{
@@ -16,14 +17,15 @@ const emit = defineEmits<{
 
 // Tab 配置
 const tabs = [
+  { id: 'settings', label: '基础设置', icon: 'i-heroicons-cog-6-tooth' },
   { id: 'ai-model', label: 'AI 模型', icon: 'i-heroicons-sparkles' },
   { id: 'ai-chat', label: 'AI 聊天', icon: 'i-heroicons-chat-bubble-left-right' },
-  { id: 'settings', label: '设置', icon: 'i-heroicons-cog-6-tooth' },
   { id: 'help', label: '帮助', icon: 'i-heroicons-question-mark-circle' },
 ]
 
-const activeTab = ref('ai-model')
+const activeTab = ref('settings')
 const aiConfigRef = ref<InstanceType<typeof AIConfigTab> | null>(null)
+const cacheManageRef = ref<InstanceType<typeof CacheManageTab> | null>(null)
 
 // AI 配置变更回调
 function handleAIConfigChanged() {
@@ -43,6 +45,16 @@ watch(
       activeTab.value = 'ai-model'
       // 刷新 AI 配置
       aiConfigRef.value?.refresh()
+    }
+  }
+)
+
+// 监听 Tab 切换，刷新对应数据
+watch(
+  () => activeTab.value,
+  (newTab) => {
+    if (newTab === 'settings') {
+      cacheManageRef.value?.refresh()
     }
   }
 )
@@ -79,50 +91,25 @@ watch(
         </div>
 
         <!-- Tab 内容 -->
-        <div class="min-h-[400px]">
+        <div class="h-[500px] overflow-y-auto">
           <!-- AI 模型配置 Tab -->
-          <div v-show="activeTab === 'ai-model'">
+          <div v-show="activeTab === 'ai-model'" class="pr-1">
             <AIConfigTab ref="aiConfigRef" @config-changed="handleAIConfigChanged" />
           </div>
 
           <!-- AI 聊天配置 Tab -->
-          <div v-show="activeTab === 'ai-chat'">
+          <div v-show="activeTab === 'ai-chat'" class="pr-1">
             <AIChatConfigTab @config-changed="handleAIConfigChanged" />
           </div>
 
           <!-- 设置 Tab -->
-          <div v-show="activeTab === 'settings'" class="space-y-6">
-            <!-- 外观设置 -->
-            <div>
-              <h3 class="mb-3 flex items-center gap-2 text-sm font-semibold text-gray-900 dark:text-white">
-                <UIcon name="i-heroicons-paint-brush" class="h-4 w-4 text-blue-500" />
-                外观设置
-              </h3>
-              <div class="rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800/50">
-                <div class="flex items-center justify-between">
-                  <div>
-                    <p class="text-sm font-medium text-gray-900 dark:text-white">深色模式</p>
-                    <p class="text-xs text-gray-500 dark:text-gray-400">跟随系统自动切换</p>
-                  </div>
-                  <UBadge variant="soft">自动</UBadge>
-                </div>
-              </div>
-            </div>
-
-            <!-- 数据设置 -->
-            <div>
-              <h3 class="mb-3 flex items-center gap-2 text-sm font-semibold text-gray-900 dark:text-white">
-                <UIcon name="i-heroicons-circle-stack" class="h-4 w-4 text-green-500" />
-                数据设置
-              </h3>
-              <div class="rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800/50">
-                <p class="text-sm text-gray-500 dark:text-gray-400">更多数据相关设置即将推出...</p>
-              </div>
-            </div>
+          <div v-show="activeTab === 'settings'" class="space-y-6 pr-1">
+            <!-- 缓存管理 -->
+            <CacheManageTab ref="cacheManageRef" />
           </div>
 
           <!-- 帮助 Tab -->
-          <div v-show="activeTab === 'help'" class="space-y-6">
+          <div v-show="activeTab === 'help'" class="space-y-6 pr-1">
             <!-- 关于 -->
             <div>
               <h3 class="mb-3 flex items-center gap-2 text-sm font-semibold text-gray-900 dark:text-white">
@@ -168,72 +155,6 @@ watch(
                     </div>
                   </div>
                 </div>
-              </div>
-            </div>
-
-            <!-- 常见问题 -->
-            <div>
-              <h3 class="mb-3 flex items-center gap-2 text-sm font-semibold text-gray-900 dark:text-white">
-                <UIcon name="i-heroicons-chat-bubble-left-ellipsis" class="h-4 w-4 text-amber-500" />
-                常见问题
-              </h3>
-              <div class="space-y-2">
-                <details
-                  class="group rounded-lg border border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-800/50"
-                >
-                  <summary
-                    class="flex cursor-pointer items-center justify-between px-4 py-3 text-sm font-medium text-gray-900 dark:text-white"
-                  >
-                    如何导入聊天记录？
-                    <UIcon
-                      name="i-heroicons-chevron-down"
-                      class="h-4 w-4 text-gray-400 transition-transform group-open:rotate-180"
-                    />
-                  </summary>
-                  <div
-                    class="border-t border-gray-200 px-4 py-3 text-sm text-gray-600 dark:border-gray-700 dark:text-gray-400"
-                  >
-                    在「实用工具」页面选择「导入聊天记录」，支持 QQ 导出的 txt 格式文件。
-                  </div>
-                </details>
-
-                <details
-                  class="group rounded-lg border border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-800/50"
-                >
-                  <summary
-                    class="flex cursor-pointer items-center justify-between px-4 py-3 text-sm font-medium text-gray-900 dark:text-white"
-                  >
-                    如何使用 AI 功能？
-                    <UIcon
-                      name="i-heroicons-chevron-down"
-                      class="h-4 w-4 text-gray-400 transition-transform group-open:rotate-180"
-                    />
-                  </summary>
-                  <div
-                    class="border-t border-gray-200 px-4 py-3 text-sm text-gray-600 dark:border-gray-700 dark:text-gray-400"
-                  >
-                    首先在 AI 配置 Tab 中添加服务配置（支持 DeepSeek、Qwen、本地 Ollama 等），然后即可开始使用。
-                  </div>
-                </details>
-
-                <details
-                  class="group rounded-lg border border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-800/50"
-                >
-                  <summary
-                    class="flex cursor-pointer items-center justify-between px-4 py-3 text-sm font-medium text-gray-900 dark:text-white"
-                  >
-                    数据保存在哪里？
-                    <UIcon
-                      name="i-heroicons-chevron-down"
-                      class="h-4 w-4 text-gray-400 transition-transform group-open:rotate-180"
-                    />
-                  </summary>
-                  <div
-                    class="border-t border-gray-200 px-4 py-3 text-sm text-gray-600 dark:border-gray-700 dark:text-gray-400"
-                  >
-                    所有数据保存在本地「文档/ChatLab」目录下，包括聊天记录数据库和 AI 配置。
-                  </div>
-                </details>
               </div>
             </div>
           </div>

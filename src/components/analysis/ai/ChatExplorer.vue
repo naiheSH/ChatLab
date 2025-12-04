@@ -430,7 +430,7 @@ watch(
             <div class="mt-2 flex items-center justify-between px-1">
               <div class="flex items-center gap-2 text-xs text-gray-400">
                 <UIcon name="i-heroicons-sparkles" class="h-3.5 w-3.5" />
-                <span>AI 对话探索</span>
+                <span>探索 {{ sessionName }} 的聊天记录</span>
               </div>
 
               <div class="flex items-center gap-3">
