@@ -9,6 +9,8 @@ const chatStore = useChatStore()
 const { isImporting, importProgress } = storeToRefs(chatStore)
 
 const importError = ref<string | null>(null)
+const showTutorialModal = ref(false)
+const showFormatModal = ref(false)
 
 const features = [
   {
@@ -83,9 +85,69 @@ async function handleFileDrop({ paths }: { files: File[]; paths: string[] }) {
   }
 }
 
-function openTutorial(type: 'wechat' | 'qq') {
-  // TODO: 打开教程页面
-  console.log('Tutorial:', type)
+// 教程 Accordion 数据
+const tutorialItems = [
+  {
+    value: 'qq',
+    label: 'QQ',
+    icon: 'i-heroicons-chat-bubble-left-right',
+    steps: [
+      '使用 qq-chat-exporter 导出聊天记录（推荐 V4 格式）',
+      '导出完成后会得到 .json 文件',
+      '将 .json 文件拖拽到上方导入区域',
+    ],
+    link: 'https://github.com/shuakami/qq-chat-exporter',
+    hasExternalLink: true,
+  },
+  {
+    value: 'other',
+    label: '其他平台',
+    icon: 'i-heroicons-device-phone-mobile',
+    steps: ['使用任意工具导出聊天记录', '将导出文件转换为 ChatLab 通用格式', '将转换后的 .json 文件拖拽到上方导入区域'],
+    hasExternalLink: false,
+    showFormatButton: true,
+  },
+]
+
+// 默认展开所有项
+const tutorialDefaultValue = tutorialItems.map((item) => item.value)
+
+function openTutorial() {
+  showTutorialModal.value = true
+}
+
+// 复制格式示例
+const formatExample = `{
+  "chatlab": {
+    "version": "1.0.0",
+    "exportedAt": 1732924800,
+    "generator": "Your Tool Name"
+  },
+  "meta": {
+    "name": "群聊名称",
+    "platform": "qq",
+    "type": "group"
+  },
+  "members": [
+    {
+      "platformId": "123456789",
+      "accountName": "用户昵称",
+      "groupNickname": "群昵称（可选）"
+    }
+  ],
+  "messages": [
+    {
+      "sender": "123456789",
+      "accountName": "发送时昵称",
+      "timestamp": 1732924800,
+      "type": 0,
+      "content": "消息内容"
+    }
+  ]
+}`
+
+function copyFormatExample() {
+  window.electron.copyToClipboard(formatExample)
 }
 
 function getProgressText(): string {
@@ -257,9 +319,181 @@ function getProgressDetail(): string {
             <span>{{ importError }}</span>
           </div>
 
-          <UButton @click="openTutorial('wechat')">查看聊天记录导入教程 →</UButton>
+          <UButton @click="openTutorial">查看聊天记录导入教程 →</UButton>
         </div>
       </div>
     </div>
+
+    <!-- 通用格式说明弹窗（层级高于教程弹窗） -->
+    <UModal v-model:open="showFormatModal" :ui="{ content: 'md:w-full max-w-3xl z-[60]', overlay: 'z-[60]' }">
+      <template #content>
+        <div class="p-6">
+          <!-- Header -->
+          <div class="mb-6 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+              <div
+                class="flex h-10 w-10 items-center justify-center rounded-xl bg-linear-to-br from-blue-100 to-indigo-100 dark:from-blue-900/30 dark:to-indigo-900/30"
+              >
+                <UIcon name="i-heroicons-document-text" class="h-5 w-5 text-blue-600 dark:text-blue-400" />
+              </div>
+              <h2 class="text-lg font-semibold text-gray-900 dark:text-white">ChatLab 通用格式说明</h2>
+            </div>
+            <UButton icon="i-heroicons-x-mark" variant="ghost" size="sm" @click="showFormatModal = false" />
+          </div>
+
+          <!-- 格式说明 -->
+          <div class="space-y-4">
+            <p class="text-sm text-gray-600 dark:text-gray-300">
+              ChatLab 支持通用的 JSON 格式。只需在 JSON 文件中包含
+              <code class="rounded bg-gray-100 px-1.5 py-0.5 text-pink-600 dark:bg-gray-800 dark:text-pink-400">
+                chatlab
+              </code>
+              对象即可被识别。
+            </p>
+
+            <!-- JSON 示例 -->
+            <div class="rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800/50">
+              <div class="mb-2 flex items-center justify-between">
+                <span class="text-xs font-medium text-gray-500 dark:text-gray-400">示例格式</span>
+                <UButton variant="ghost" size="xs" icon="i-heroicons-clipboard-document" @click="copyFormatExample">
+                  复制
+                </UButton>
+              </div>
+              <pre class="overflow-x-auto text-xs leading-relaxed text-gray-700 dark:text-gray-300"><code>{
+  "chatlab": {
+    "version": "1.0.0",
+    "exportedAt": 1732924800,
+    "generator": "Your Tool Name"
+  },
+  "meta": {
+    "name": "群聊名称",
+    "platform": "qq",  // qq | wechat | telegram | discord 等
+    "type": "group"    // group | private （群聊|私聊）
+  },
+  "members": [
+    {
+      "platformId": "123456789",
+      "accountName": "用户昵称",
+      "groupNickname": "群昵称（可选）"
+    }
+  ],
+  "messages": [
+    {
+      "sender": "123456789",
+      "accountName": "发送时昵称",
+      "timestamp": 1732924800,  // 秒级时间戳
+      "type": 0,  // 0=文本 1=图片 2=语音 3=视频
+      "content": "消息内容"
+    }
+  ]
+}</code></pre>
+            </div>
+
+            <!-- 字段说明 -->
+            <div class="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
+              <h3 class="mb-3 text-sm font-semibold text-gray-900 dark:text-white">消息类型说明</h3>
+              <div class="grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
+                <div class="rounded-lg bg-gray-50 p-2 dark:bg-gray-700">
+                  <span class="font-mono text-pink-600 dark:text-pink-400">0</span>
+                  <span class="ml-2 text-gray-600 dark:text-gray-300">文本</span>
+                </div>
+                <div class="rounded-lg bg-gray-50 p-2 dark:bg-gray-700">
+                  <span class="font-mono text-pink-600 dark:text-pink-400">1</span>
+                  <span class="ml-2 text-gray-600 dark:text-gray-300">图片</span>
+                </div>
+                <div class="rounded-lg bg-gray-50 p-2 dark:bg-gray-700">
+                  <span class="font-mono text-pink-600 dark:text-pink-400">2</span>
+                  <span class="ml-2 text-gray-600 dark:text-gray-300">语音</span>
+                </div>
+                <div class="rounded-lg bg-gray-50 p-2 dark:bg-gray-700">
+                  <span class="font-mono text-pink-600 dark:text-pink-400">3</span>
+                  <span class="ml-2 text-gray-600 dark:text-gray-300">视频</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 底部提示 -->
+          <div class="mt-6 rounded-lg bg-blue-50 p-4 dark:bg-blue-900/20">
+            <p class="text-sm text-blue-600 dark:text-blue-400">
+              💡 文件名只需以
+              <code class="rounded bg-blue-100 px-1 dark:bg-blue-800">.json</code>
+              结尾，JSON 中包含
+              <code class="rounded bg-blue-100 px-1 dark:bg-blue-800">chatlab</code>
+              对象即可被识别。
+            </p>
+          </div>
+        </div>
+      </template>
+    </UModal>
+
+    <!-- 导入教程弹窗 -->
+    <UModal v-model:open="showTutorialModal" :ui="{ content: 'md:w-full max-w-2xl' }">
+      <template #content>
+        <div class="p-6">
+          <!-- Header -->
+          <div class="mb-6 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+              <div
+                class="flex h-10 w-10 items-center justify-center rounded-xl bg-linear-to-br from-pink-100 to-rose-100 dark:from-pink-900/30 dark:to-rose-900/30"
+              >
+                <UIcon name="i-heroicons-book-open" class="h-5 w-5 text-pink-600 dark:text-pink-400" />
+              </div>
+              <h2 class="text-lg font-semibold text-gray-900 dark:text-white">聊天记录导入教程</h2>
+            </div>
+            <UButton icon="i-heroicons-x-mark" variant="ghost" size="sm" @click="showTutorialModal = false" />
+          </div>
+
+          <!-- 教程内容 - 使用 Accordion -->
+          <UAccordion type="multiple" :default-value="tutorialDefaultValue" :items="tutorialItems">
+            <template #body="{ item }">
+              <!-- 步骤列表 -->
+              <ol class="mb-4 space-y-2">
+                <li
+                  v-for="(step, index) in item.steps"
+                  :key="index"
+                  class="flex items-start gap-3 text-sm text-gray-600 dark:text-gray-300"
+                >
+                  <span
+                    class="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-pink-100 text-xs font-medium text-pink-600 dark:bg-pink-900/30 dark:text-pink-400"
+                  >
+                    {{ index + 1 }}
+                  </span>
+                  <span>{{ step }}</span>
+                </li>
+              </ol>
+
+              <!-- 工具链接 / 格式说明按钮 -->
+              <UButton
+                v-if="item.hasExternalLink"
+                variant="soft"
+                size="sm"
+                :trailing-icon="'i-heroicons-arrow-top-right-on-square'"
+                @click="window.electron.openExternal(item.link)"
+              >
+                查看导出工具
+              </UButton>
+              <UButton
+                v-if="item.showFormatButton"
+                variant="soft"
+                size="sm"
+                :trailing-icon="'i-heroicons-document-text'"
+                @click="showFormatModal = true"
+              >
+                查看通用格式说明
+              </UButton>
+            </template>
+          </UAccordion>
+
+          <!-- 底部提示 -->
+          <div class="mt-6 rounded-lg bg-gray-50 p-4 dark:bg-gray-800/50">
+            <p class="text-sm text-gray-500 dark:text-gray-400">
+              💡 提示：ChatLab 支持多种聊天记录格式，包括 QQ、微信、Discord
+              等平台。将导出的文件直接拖拽到导入区域即可开始分析。
+            </p>
+          </div>
+        </div>
+      </template>
+    </UModal>
   </div>
 </template>

@@ -1,6 +1,6 @@
 /**
  * ChatLab JSON 格式
- * ChatLab 专属的统一格式（.chatlab.json）
+ * ChatLab 专属的统一格式（通过 chatlab 对象识别）
  *
  * 特征：
  * - 文件头包含 "chatlab" 字段
@@ -47,7 +47,7 @@ export const feature: FormatFeature = {
   name: 'ChatLab JSON',
   platform: ChatPlatform.UNKNOWN, // ChatLab 格式可能包含多平台数据
   priority: 1, // 最高优先级
-  extensions: ['.json', '.chatlab.json'],
+  extensions: ['.json'],
   signatures: {
     head: [/"chatlab"\s*:\s*\{/, /"version"\s*:\s*"/],
     requiredFields: ['chatlab', 'meta', 'messages'],

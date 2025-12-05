@@ -55,7 +55,7 @@ function ensureOutputDir(dir: string): void {
 function generateOutputFilename(name: string): string {
   const date = new Date().toISOString().slice(0, 10).replace(/-/g, '')
   const safeName = name.replace(/[/\\?%*:|"<>]/g, '_')
-  return `${safeName}_merged_${date}.chatlab.json`
+  return `${safeName}_merged_${date}.json`
 }
 
 /**

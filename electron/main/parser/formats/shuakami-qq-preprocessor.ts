@@ -155,6 +155,7 @@ async function preprocessQQJson(inputPath: string, onProgress?: (progress: Parse
     const headStream = fs.createReadStream(inputPath, { encoding: 'utf-8' })
     let chatInfo: Record<string, unknown> = { name: '未知群聊', type: 'group' }
     let metadata: Record<string, unknown> | undefined
+    let statistics: Record<string, unknown> | undefined
 
     headStream.on('data', (chunk: string | Buffer) => {
       const str = typeof chunk === 'string' ? chunk : chunk.toString('utf-8')
@@ -187,6 +188,17 @@ async function preprocessQQJson(inputPath: string, onProgress?: (progress: Parse
         // 忽略
       }
 
+      // 解析 statistics 字段（完整保留，用于聊天类型判断）
+      // statistics 是嵌套对象，后面紧跟 "messages" 字段
+      try {
+        const statisticsMatch = headContent.match(/"statistics"\s*:\s*(\{[\s\S]*?\})\s*,\s*"messages"/)
+        if (statisticsMatch) {
+          statistics = JSON.parse(statisticsMatch[1])
+        }
+      } catch {
+        // 解析失败时忽略
+      }
+
       onProgress?.(createProgress('parsing', 0, totalBytes, 0, '预处理：开始精简消息...'))
 
       const readStream = fs.createReadStream(inputPath, { encoding: 'utf-8' })
@@ -196,9 +208,9 @@ async function preprocessQQJson(inputPath: string, onProgress?: (progress: Parse
         bytesRead += typeof chunk === 'string' ? Buffer.byteLength(chunk) : chunk.length
       })
 
-      const header = { metadata, chatInfo, messages: [] }
+      const header = { metadata, chatInfo, statistics, messages: [] }
       const headerJson = JSON.stringify(header)
-      // 移除最后的 ]} 保留 [，结果如 {"metadata":...,"chatInfo":...,"messages":[
+      // 移除最后的 ]} 保留 [，结果如 {"metadata":...,"chatInfo":...,"statistics":...,"messages":[
       writeStream.write(headerJson.slice(0, -2) + '\n')
 
       let isFirstMessage = true

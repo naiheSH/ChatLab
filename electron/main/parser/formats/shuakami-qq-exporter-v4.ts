@@ -169,11 +169,38 @@ async function* parseV4(options: ParseOptions): AsyncGenerator<ParseEvent, void,
     // 使用默认值
   }
 
+  // 解析 statistics.senders 来判断聊天类型
+  // 私聊只有 2 个发送者，群聊有多个发送者
+  let sendersCount = 0
+  try {
+    // 匹配 "senders": [...] 数组（senders 后面通常是 "resources" 字段）
+    const sendersMatch = headContent.match(/"senders"\s*:\s*\[([\s\S]*?)\]\s*,\s*"resources"/)
+    if (sendersMatch) {
+      // 计算 senders 数组中 uid 出现的次数来确定发送者数量
+      const sendersContent = sendersMatch[1]
+      const uidMatches = sendersContent.match(/"uid"\s*:/g)
+      sendersCount = uidMatches ? uidMatches.length : 0
+    }
+  } catch {
+    // 解析失败时 fallback 到 chatInfo.type
+  }
+
+  // 根据发送者数量判断聊天类型：私聊 <= 2 人，群聊 > 2 人
+  // 如果无法获取 senders 数量（sendersCount === 0），则 fallback 到 chatInfo.type
+  const chatType =
+    sendersCount > 0
+      ? sendersCount > 2
+        ? ChatType.GROUP
+        : ChatType.PRIVATE
+      : chatInfo.type === 'group'
+        ? ChatType.GROUP
+        : ChatType.PRIVATE
+
   // 发送 meta
   const meta: ParsedMeta = {
     name: chatInfo.name === '未知群聊' ? extractNameFromFilePath(filePath) : chatInfo.name,
     platform: ChatPlatform.QQ,
-    type: chatInfo.type === 'group' ? ChatType.GROUP : ChatType.PRIVATE,
+    type: chatType,
   }
   yield { type: 'meta', data: meta }
 
