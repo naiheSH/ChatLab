@@ -305,56 +305,6 @@ export function hasActiveConfig(): boolean {
   return config !== null
 }
 
-// ==================== 兼容旧 API（deprecated）====================
-
-/**
- * @deprecated 使用 loadConfigStore 代替
- */
-export function loadLLMConfig(): LegacyStoredConfig | null {
-  const activeConfig = getActiveConfig()
-  if (!activeConfig) return null
-  return {
-    provider: activeConfig.provider,
-    apiKey: activeConfig.apiKey,
-    model: activeConfig.model,
-    maxTokens: activeConfig.maxTokens,
-  }
-}
-
-/**
- * @deprecated 使用 addConfig 或 updateConfig 代替
- */
-export function saveLLMConfig(config: LegacyStoredConfig): void {
-  const store = loadConfigStore()
-
-  // 如果有激活配置，更新它；否则创建新的
-  if (store.activeConfigId) {
-    updateConfig(store.activeConfigId, config)
-  } else {
-    addConfig({
-      name: getProviderInfo(config.provider)?.name || config.provider,
-      ...config,
-    })
-  }
-}
-
-/**
- * @deprecated 使用 deleteConfig 代替
- */
-export function deleteLLMConfig(): void {
-  const store = loadConfigStore()
-  if (store.activeConfigId) {
-    deleteConfig(store.activeConfigId)
-  }
-}
-
-/**
- * @deprecated 使用 hasActiveConfig 代替
- */
-export function hasLLMConfig(): boolean {
-  return hasActiveConfig()
-}
-
 /**
  * 扩展的 LLM 配置（包含本地服务特有选项）
  */

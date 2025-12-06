@@ -236,7 +236,7 @@ export function registerAIHandlers({ win }: IpcContext): void {
    */
   ipcMain.handle('llm:deleteConfig', async (_, id?: string) => {
     try {
-      // 兼容旧 API：如果没有传 id，删除当前激活的配置
+      // 如果没有传 id，删除当前激活的配置
       if (!id) {
         const activeConfig = llm.getActiveConfig()
         if (activeConfig) {
@@ -288,63 +288,6 @@ export function registerAIHandlers({ win }: IpcContext): void {
   ipcMain.handle('llm:hasConfig', async () => {
     return llm.hasActiveConfig()
   })
-
-  // ==================== 兼容旧 API（deprecated）====================
-
-  /**
-   * @deprecated 使用 llm:getAllConfigs 代替
-   * 获取当前 LLM 配置
-   */
-  ipcMain.handle('llm:getConfig', async () => {
-    const config = llm.getActiveConfig()
-    if (!config) return null
-    return {
-      provider: config.provider,
-      apiKey: config.apiKey ? `${config.apiKey.slice(0, 8)}...${config.apiKey.slice(-4)}` : '',
-      apiKeySet: !!config.apiKey,
-      model: config.model,
-      baseUrl: config.baseUrl,
-      maxTokens: config.maxTokens,
-    }
-  })
-
-  /**
-   * @deprecated 使用 llm:addConfig 或 llm:updateConfig 代替
-   * 保存 LLM 配置
-   */
-  ipcMain.handle(
-    'llm:saveConfig',
-    async (
-      _,
-      config: { provider: llm.LLMProvider; apiKey: string; model?: string; baseUrl?: string; maxTokens?: number }
-    ) => {
-      try {
-        const activeConfig = llm.getActiveConfig()
-
-        if (activeConfig) {
-          // 更新现有配置
-          const updates: Record<string, unknown> = { ...config }
-          if (!config.apiKey || config.apiKey.trim() === '') {
-            delete updates.apiKey
-          }
-          return llm.updateConfig(activeConfig.id, updates)
-        } else {
-          // 创建新配置
-          if (!config.apiKey || config.apiKey.trim() === '') {
-            return { success: false, error: '请输入 API Key' }
-          }
-          const providerInfo = llm.getProviderInfo(config.provider)
-          return llm.addConfig({
-            name: providerInfo?.name || config.provider,
-            ...config,
-          })
-        }
-      } catch (error) {
-        console.error('保存 LLM 配置失败：', error)
-        return { success: false, error: String(error) }
-      }
-    }
-  )
 
   /**
    * 发送 LLM 聊天请求（非流式）
@@ -468,68 +411,69 @@ export function registerAIHandlers({ win }: IpcContext): void {
           promptConfig
         )
 
-      // 异步执行，通过事件发送流式数据
-      ;(async () => {
-        try {
-          const result = await agent.executeStream(userMessage, (chunk: AgentStreamChunk) => {
-            // 如果已中止，不再发送
+        // 异步执行，通过事件发送流式数据
+        ;(async () => {
+          try {
+            const result = await agent.executeStream(userMessage, (chunk: AgentStreamChunk) => {
+              // 如果已中止，不再发送
+              if (abortController.signal.aborted) {
+                return
+              }
+              // 减少日志噪音：只在工具调用时记录
+              if (chunk.type === 'tool_start' || chunk.type === 'tool_result') {
+                aiLogger.debug('IPC', `Agent chunk: ${requestId}`, {
+                  type: chunk.type,
+                  toolName: chunk.toolName,
+                })
+              }
+              win.webContents.send('agent:streamChunk', { requestId, chunk })
+            })
+
+            // 如果已中止，不发送完成信息
             if (abortController.signal.aborted) {
+              aiLogger.info('IPC', `Agent 已中止，跳过完成信息: ${requestId}`)
               return
             }
-            // 减少日志噪音：只在工具调用时记录
-            if (chunk.type === 'tool_start' || chunk.type === 'tool_result') {
-              aiLogger.debug('IPC', `Agent chunk: ${requestId}`, {
-                type: chunk.type,
-                toolName: chunk.toolName,
-              })
-            }
-            win.webContents.send('agent:streamChunk', { requestId, chunk })
-          })
 
-          // 如果已中止，不发送完成信息
-          if (abortController.signal.aborted) {
-            aiLogger.info('IPC', `Agent 已中止，跳过完成信息: ${requestId}`)
-            return
-          }
+            // 发送完成信息
+            win.webContents.send('agent:complete', {
+              requestId,
+              result: {
+                content: result.content,
+                toolsUsed: result.toolsUsed,
+                toolRounds: result.toolRounds,
+              },
+            })
 
-          // 发送完成信息
-          win.webContents.send('agent:complete', {
-            requestId,
-            result: {
-              content: result.content,
+            aiLogger.info('IPC', `Agent 执行完成: ${requestId}`, {
               toolsUsed: result.toolsUsed,
               toolRounds: result.toolRounds,
-            },
-          })
-
-          aiLogger.info('IPC', `Agent 执行完成: ${requestId}`, {
-            toolsUsed: result.toolsUsed,
-            toolRounds: result.toolRounds,
-            contentLength: result.content.length,
-          })
-        } catch (error) {
-          // 如果是中止错误，不报告为错误
-          if (error instanceof Error && error.name === 'AbortError') {
-            aiLogger.info('IPC', `Agent 请求已中止: ${requestId}`)
-            return
+              contentLength: result.content.length,
+            })
+          } catch (error) {
+            // 如果是中止错误，不报告为错误
+            if (error instanceof Error && error.name === 'AbortError') {
+              aiLogger.info('IPC', `Agent 请求已中止: ${requestId}`)
+              return
+            }
+            aiLogger.error('IPC', `Agent 执行出错: ${requestId}`, { error: String(error) })
+            win.webContents.send('agent:streamChunk', {
+              requestId,
+              chunk: { type: 'error', error: String(error), isFinished: true },
+            })
+          } finally {
+            // 清理请求追踪
+            activeAgentRequests.delete(requestId)
           }
-          aiLogger.error('IPC', `Agent 执行出错: ${requestId}`, { error: String(error) })
-          win.webContents.send('agent:streamChunk', {
-            requestId,
-            chunk: { type: 'error', error: String(error), isFinished: true },
-          })
-        } finally {
-          // 清理请求追踪
-          activeAgentRequests.delete(requestId)
-        }
-      })()
+        })()
 
-      return { success: true }
-    } catch (error) {
-      aiLogger.error('IPC', `创建 Agent 请求失败: ${requestId}`, { error: String(error) })
-      return { success: false, error: String(error) }
+        return { success: true }
+      } catch (error) {
+        aiLogger.error('IPC', `创建 Agent 请求失败: ${requestId}`, { error: String(error) })
+        return { success: false, error: String(error) }
+      }
     }
-  })
+  )
 
   /**
    * 中止 Agent 请求

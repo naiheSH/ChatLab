@@ -177,16 +177,6 @@ interface AIServiceConfigDisplay {
   updatedAt: number
 }
 
-// 兼容旧 API 的配置类型
-interface LLMConfig {
-  provider: string
-  apiKey: string
-  apiKeySet: boolean
-  model?: string
-  baseUrl?: string
-  maxTokens?: number
-}
-
 interface LLMChatMessage {
   role: 'system' | 'user' | 'assistant'
   content: string
@@ -237,18 +227,6 @@ interface LlmApi {
   // 验证和检查
   validateApiKey: (provider: string, apiKey: string, baseUrl?: string, model?: string) => Promise<boolean>
   hasConfig: () => Promise<boolean>
-
-  // 兼容旧 API（deprecated）
-  /** @deprecated 使用 getAllConfigs 代替 */
-  getConfig: () => Promise<LLMConfig | null>
-  /** @deprecated 使用 addConfig 或 updateConfig 代替 */
-  saveConfig: (config: {
-    provider: string
-    apiKey: string
-    model?: string
-    baseUrl?: string
-    maxTokens?: number
-  }) => Promise<{ success: boolean; error?: string }>
 
   // 聊天功能
   chat: (

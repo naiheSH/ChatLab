@@ -507,14 +507,6 @@ interface LLMProvider {
   models: Array<{ id: string; name: string; description?: string }>
 }
 
-interface LLMConfig {
-  provider: string
-  apiKey: string
-  apiKeySet: boolean
-  model?: string
-  maxTokens?: number
-}
-
 interface ChatMessage {
   role: 'system' | 'user' | 'assistant'
   content: string
@@ -648,30 +640,6 @@ const llmApi = {
    */
   hasConfig: (): Promise<boolean> => {
     return ipcRenderer.invoke('llm:hasConfig')
-  },
-
-  // ==================== 兼容旧 API（deprecated）====================
-
-  /**
-   * @deprecated 使用 getAllConfigs 代替
-   * 获取当前 LLM 配置
-   */
-  getConfig: (): Promise<LLMConfig | null> => {
-    return ipcRenderer.invoke('llm:getConfig')
-  },
-
-  /**
-   * @deprecated 使用 addConfig 或 updateConfig 代替
-   * 保存 LLM 配置
-   */
-  saveConfig: (config: {
-    provider: string
-    apiKey: string
-    model?: string
-    baseUrl?: string
-    maxTokens?: number
-  }): Promise<{ success: boolean; error?: string }> => {
-    return ipcRenderer.invoke('llm:saveConfig', config)
   },
 
   /**

@@ -338,14 +338,6 @@ export async function deleteMember(sessionId: string, memberId: number): Promise
 }
 
 /**
- * 解析文件获取基本信息（在 Worker 线程中执行）
- * @deprecated 使用 streamParseFileInfo 替代
- */
-export async function parseFileInfo(filePath: string): Promise<any> {
-  return sendToWorker('parseFileInfo', { filePath })
-}
-
-/**
  * 流式解析文件，写入临时数据库（用于合并功能）
  * 返回基本信息和临时数据库路径
  */

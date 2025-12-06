@@ -42,30 +42,7 @@ import {
   updateMemberAliases,
   deleteMember,
 } from './query'
-import { parseFile, detectFormat } from '../parser'
 import { streamImport, streamParseFileInfo } from './import'
-import type { FileParseInfo } from '../../../src/types/chat'
-
-/**
- * 解析文件获取基本信息（在 Worker 线程中执行，不阻塞主进程）
- * @deprecated 使用 streamParseFileInfo 替代
- */
-function parseFileInfo(filePath: string): FileParseInfo {
-  const format = detectFormat(filePath)
-  if (!format) {
-    throw new Error('无法识别文件格式')
-  }
-
-  const result = parseFile(filePath)
-
-  return {
-    name: result.meta.name,
-    format,
-    platform: result.meta.platform,
-    messageCount: result.messages.length,
-    memberCount: result.members.length,
-  }
-}
 
 // 初始化数据库目录
 initDbDir(workerData.dbDir)
@@ -80,9 +57,6 @@ interface WorkerMessage {
 
 // 同步消息处理器
 const syncHandlers: Record<string, (payload: any) => any> = {
-  // 文件解析（合并功能使用，已废弃）
-  parseFileInfo: (p) => parseFileInfo(p.filePath),
-
   // 基础查询
   getAvailableYears: (p) => getAvailableYears(p.sessionId),
   getMemberActivity: (p) => getMemberActivity(p.sessionId, p.filter),
