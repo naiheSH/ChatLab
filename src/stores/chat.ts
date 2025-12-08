@@ -5,6 +5,8 @@ import {
   BUILTIN_PRESETS,
   DEFAULT_GROUP_PRESET_ID,
   DEFAULT_PRIVATE_PRESET_ID,
+  CYBER_JUDGE_GROUP_PRESET_ID,
+  CYBER_JUDGE_PRIVATE_PRESET_ID,
   getOriginalBuiltinPreset,
 } from '@/config/prompts'
 
@@ -294,8 +296,8 @@ export const useChatStore = defineStore(
       Record<string, { name?: string; roleDefinition?: string; responseRules?: string; updatedAt?: number }>
     >({})
     const aiPromptSettings = ref<AIPromptSettings>({
-      activeGroupPresetId: DEFAULT_GROUP_PRESET_ID,
-      activePrivatePresetId: DEFAULT_PRIVATE_PRESET_ID,
+      activeGroupPresetId: CYBER_JUDGE_GROUP_PRESET_ID,
+      activePrivatePresetId: CYBER_JUDGE_PRIVATE_PRESET_ID,
     })
 
     /** 获取所有预设（内置+覆盖 + 自定义） */

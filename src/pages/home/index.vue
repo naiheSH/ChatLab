@@ -150,13 +150,13 @@ function getProgressDetail(): string {
           <div class="mx-auto flex items-center justify-center">
             <div class="relative">
               <span
-                class="text-xl font-black italic tracking-wide text-gray-500 transition-transform duration-300 hover:scale-105 dark:text-gray-400"
+                class="text-xl font-black italic tracking-wide text-pink-500 transition-transform duration-300 hover:scale-105"
               >
                 你的本地 AI 聊天分析实验室
               </span>
               <UIcon
                 name="i-heroicons-sparkles"
-                class="absolute -right-6 -top-3 h-5 w-5 animate-bounce text-gray-400"
+                class="absolute -right-6 -top-3 h-5 w-5 animate-bounce text-pink-400"
               />
             </div>
           </div>
