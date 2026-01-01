@@ -1,7 +1,7 @@
 {
   "name": "ChatLab",
   "version": "0.2.0",
-  "description": "获取你的聊天记录年度分析报告",
+  "description": "本地聊天分析实验室",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/hellodigua/ChatLab.git"
