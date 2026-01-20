@@ -28,6 +28,7 @@ export interface ToolBlockContent {
 // 内容块类型（用于 AI 消息的流式混合渲染）
 export type ContentBlock =
   | { type: 'text'; text: string }
+  | { type: 'think'; tag: string; text: string } // 思考内容块
   | {
       type: 'tool'
       tool: ToolBlockContent
@@ -278,6 +279,21 @@ export function useAIChat(
       })
     }
 
+    // 辅助函数：追加思考块（单独渲染，不写入 content）
+    const appendThinkToBlocks = (text: string, tag?: string) => {
+      const blocks = messages.value[aiMessageIndex].contentBlocks || []
+      const thinkTag = tag || 'think'
+      const lastBlock = blocks[blocks.length - 1]
+
+      if (lastBlock && lastBlock.type === 'think' && lastBlock.tag === thinkTag) {
+        lastBlock.text += text
+      } else {
+        blocks.push({ type: 'think', tag: thinkTag, text })
+      }
+
+      updateAIMessage({ contentBlocks: [...blocks] })
+    }
+
     // 辅助函数：添加工具块
     const addToolBlock = (toolName: string, params?: Record<string, unknown>) => {
       const blocks = messages.value[aiMessageIndex].contentBlocks || []
@@ -374,6 +390,13 @@ export function useAIChat(
               if (chunk.content) {
                 currentToolStatus.value = null
                 appendTextToBlocks(chunk.content)
+              }
+              break
+
+            case 'think':
+              // 思考内容 - 写入思考块
+              if (chunk.content) {
+                appendThinkToBlocks(chunk.content, chunk.thinkTag)
               }
               break
 

@@ -43,6 +43,18 @@ function renderMarkdown(text: string): string {
   return md.render(text)
 }
 
+// 思考标签名称映射
+function getThinkLabel(tag: string): string {
+  const normalized = tag?.toLowerCase() || 'think'
+  if (normalized === 'analysis') return t('think.labels.analysis')
+  if (normalized === 'reasoning') return t('think.labels.reasoning')
+  if (normalized === 'reflection') return t('think.labels.reflection')
+  if (normalized === 'think' || normalized === 'thought' || normalized === 'thinking') {
+    return t('think.labels.think')
+  }
+  return t('think.labels.other', { tag })
+}
+
 // 渲染后的 HTML（用于用户消息或纯文本 AI 消息）
 const renderedContent = computed(() => {
   if (!props.content) return ''
@@ -231,6 +243,19 @@ function formatToolParams(tool: ToolBlockContent): string {
               />
             </div>
 
+            <!-- 思考块（默认折叠） -->
+            <details
+              v-else-if="block.type === 'think'"
+              class="rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-gray-700 dark:border-gray-700 dark:bg-gray-900/40 dark:text-gray-200"
+            >
+              <summary class="cursor-pointer select-none text-sm font-medium text-gray-500 dark:text-gray-400">
+                {{ getThinkLabel(block.tag) }}
+              </summary>
+              <div class="mt-2 prose prose-sm dark:prose-invert max-w-none leading-relaxed">
+                <div v-html="renderMarkdown(block.text)" />
+              </div>
+            </details>
+
             <!-- 工具块 -->
             <div
               v-else-if="block.type === 'tool'"
@@ -326,6 +351,15 @@ function formatToolParams(tool: ToolBlockContent): string {
       "calling": "调用",
       "generating": "正在生成回复..."
     },
+    "think": {
+      "labels": {
+        "think": "思考",
+        "analysis": "分析",
+        "reasoning": "推理",
+        "reflection": "反思",
+        "other": "思考（{tag}）"
+      }
+    },
     "toolParams": {
       "keywords": "关键词",
       "time": "时间",
@@ -349,6 +383,15 @@ function formatToolParams(tool: ToolBlockContent): string {
       "userAvatar": "User Avatar",
       "calling": "Calling",
       "generating": "Generating response..."
+    },
+    "think": {
+      "labels": {
+        "think": "Thinking",
+        "analysis": "Analysis",
+        "reasoning": "Reasoning",
+        "reflection": "Reflection",
+        "other": "Thinking ({tag})"
+      }
     },
     "toolParams": {
       "keywords": "Keywords",

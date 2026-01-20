@@ -117,6 +117,7 @@ export interface AIConversation {
  */
 export type ContentBlock =
   | { type: 'text'; text: string }
+  | { type: 'think'; tag: string; text: string } // 思考内容块
   | {
       type: 'tool'
       tool: {
@@ -323,4 +324,3 @@ export function deleteMessage(messageId: string): boolean {
   const result = db.prepare('DELETE FROM ai_message WHERE id = ?').run(messageId)
   return result.changes > 0
 }
-

@@ -10,23 +10,37 @@ import type { ToolContext, OwnerInfo } from './tools/types'
 import { aiLogger } from './logger'
 import { randomUUID } from 'crypto'
 
+// 思考类标签列表（可按需扩展）
+const THINK_TAGS = ['think', 'analysis', 'reasoning', 'reflection', 'thought', 'thinking']
+const THINK_START_TAGS = THINK_TAGS.map((tag) => `<${tag}>`)
+const TOOL_CALL_START_TAG = '<tool_call>'
+const TOOL_CALL_END_TAG = '</tool_call>'
+
 // ==================== Fallback 解析器 ====================
 
 /**
- * 从文本内容中提取 <think> 标签内容
+ * 从文本内容中提取思考类标签内容
  */
 function extractThinkingContent(content: string): { thinking: string; cleanContent: string } {
-  const thinkRegex = /<think>([\s\S]*?)<\/think>/gi
-  let thinking = ''
+  if (!content) {
+    return { thinking: '', cleanContent: '' }
+  }
+
+  const tagPattern = THINK_TAGS.join('|')
+  const thinkRegex = new RegExp(`<(${tagPattern})>([\\s\\S]*?)<\\/\\1>`, 'gi')
+  const thinkingParts: string[] = []
   let cleanContent = content
 
   const matches = content.matchAll(thinkRegex)
   for (const match of matches) {
-    thinking += match[1].trim() + '\n'
+    const thinkText = match[2].trim()
+    if (thinkText) {
+      thinkingParts.push(thinkText)
+    }
     cleanContent = cleanContent.replace(match[0], '')
   }
 
-  return { thinking: thinking.trim(), cleanContent: cleanContent.trim() }
+  return { thinking: thinkingParts.join('\n').trim(), cleanContent: cleanContent.trim() }
 }
 
 /**
@@ -68,6 +82,159 @@ function hasToolCallTags(content: string): boolean {
 }
 
 /**
+ * 清理 <tool_call> 标签内容，避免将工具调用文本展示给用户
+ */
+function stripToolCallTags(content: string): string {
+  return content.replace(/<tool_call>[\s\S]*?<\/tool_call>/gi, '').trim()
+}
+
+type StreamMode = 'text' | 'think' | 'tool_call'
+
+/**
+ * 创建流式解析器：将文本按 content/think/tool_call 分流
+ */
+function createStreamParser(handlers: {
+  onText: (text: string) => void
+  onThink: (text: string, tag: string) => void
+}): { push: (text: string) => void; flush: () => void } {
+  let buffer = ''
+  let mode: StreamMode = 'text'
+  let currentThinkTag = ''
+
+  const startTags = [...THINK_START_TAGS, TOOL_CALL_START_TAG]
+  const startTagsLower = startTags.map((tag) => tag.toLowerCase())
+  const toolCallStartLower = TOOL_CALL_START_TAG.toLowerCase()
+  const toolCallEndLower = TOOL_CALL_END_TAG.toLowerCase()
+  const maxStartTagLength = Math.max(...startTags.map((tag) => tag.length))
+
+  const findNextTagIndex = (lowerBuffer: string): { index: number; tag: string } | null => {
+    let hitIndex = -1
+    let hitTag = ''
+    for (const tag of startTagsLower) {
+      const index = lowerBuffer.indexOf(tag)
+      if (index !== -1 && (hitIndex === -1 || index < hitIndex)) {
+        hitIndex = index
+        hitTag = tag
+      }
+    }
+    return hitIndex === -1 ? null : { index: hitIndex, tag: hitTag }
+  }
+
+  const emitText = (text: string) => {
+    if (text) {
+      handlers.onText(text)
+    }
+  }
+
+  const emitThink = (text: string) => {
+    if (text) {
+      handlers.onThink(text, currentThinkTag || 'think')
+    }
+  }
+
+  const processBuffer = () => {
+    let safety = 0
+    while (buffer && safety < 10000) {
+      safety += 1
+      if (mode === 'text') {
+        const lowerBuffer = buffer.toLowerCase()
+        const hit = findNextTagIndex(lowerBuffer)
+        if (!hit) {
+          // 保留一段尾部，避免标签被截断
+          const keepLength = Math.max(1, maxStartTagLength - 1)
+          if (buffer.length > keepLength) {
+            emitText(buffer.slice(0, buffer.length - keepLength))
+            buffer = buffer.slice(buffer.length - keepLength)
+          }
+          break
+        }
+
+        if (hit.index > 0) {
+          emitText(buffer.slice(0, hit.index))
+          buffer = buffer.slice(hit.index)
+        }
+
+        const lowerHead = buffer.toLowerCase()
+        if (lowerHead.startsWith(hit.tag)) {
+          if (hit.tag === toolCallStartLower) {
+            mode = 'tool_call'
+            buffer = buffer.slice(TOOL_CALL_START_TAG.length)
+            continue
+          }
+
+          // 进入思考模式
+          currentThinkTag = hit.tag.slice(1, -1)
+          mode = 'think'
+          buffer = buffer.slice(startTags[startTagsLower.indexOf(hit.tag)].length)
+          continue
+        }
+
+        // 未识别的 < 视为普通文本
+        emitText(buffer.slice(0, 1))
+        buffer = buffer.slice(1)
+        continue
+      }
+
+      if (mode === 'think') {
+        const endTag = `</${currentThinkTag}>`
+        const lowerBuffer = buffer.toLowerCase()
+        const endIndex = lowerBuffer.indexOf(endTag)
+        if (endIndex === -1) {
+          const keepLength = Math.max(1, endTag.length - 1)
+          if (buffer.length > keepLength) {
+            emitThink(buffer.slice(0, buffer.length - keepLength))
+            buffer = buffer.slice(buffer.length - keepLength)
+          }
+          break
+        }
+
+        if (endIndex > 0) {
+          emitThink(buffer.slice(0, endIndex))
+        }
+
+        buffer = buffer.slice(endIndex + endTag.length)
+        mode = 'text'
+        currentThinkTag = ''
+        continue
+      }
+
+      if (mode === 'tool_call') {
+        const lowerBuffer = buffer.toLowerCase()
+        const endIndex = lowerBuffer.indexOf(toolCallEndLower)
+        if (endIndex === -1) {
+          const keepLength = Math.max(1, TOOL_CALL_END_TAG.length - 1)
+          if (buffer.length > keepLength) {
+            buffer = buffer.slice(buffer.length - keepLength)
+          }
+          break
+        }
+
+        buffer = buffer.slice(endIndex + TOOL_CALL_END_TAG.length)
+        mode = 'text'
+        continue
+      }
+    }
+  }
+
+  return {
+    push(text: string) {
+      if (!text) return
+      buffer += text
+      processBuffer()
+    },
+    flush() {
+      if (!buffer) return
+      if (mode === 'text') {
+        emitText(buffer)
+      } else if (mode === 'think') {
+        emitThink(buffer)
+      }
+      buffer = ''
+    },
+  }
+}
+
+/**
  * Agent 配置
  */
 export interface AgentConfig {
@@ -93,9 +260,11 @@ export interface TokenUsage {
  */
 export interface AgentStreamChunk {
   /** chunk 类型 */
-  type: 'content' | 'tool_start' | 'tool_result' | 'done' | 'error'
+  type: 'content' | 'think' | 'tool_start' | 'tool_result' | 'done' | 'error'
   /** 文本内容（type=content 时） */
   content?: string
+  /** 思考标签名称（type=think 时） */
+  thinkTag?: string
   /** 工具名称（type=tool_start/tool_result 时） */
   toolName?: string
   /** 工具调用参数（type=tool_start 时） */
@@ -411,24 +580,23 @@ export class Agent {
       // 累加 Token 使用量
       this.addUsage(response.usage)
 
+      const { cleanContent } = extractThinkingContent(response.content)
       let toolCallsToProcess = response.tool_calls
 
       // 如果没有标准 tool_calls，尝试 fallback 解析
       if (response.finishReason !== 'tool_calls' || !response.tool_calls) {
         // Fallback: 检查内容中是否有 <tool_call> 标签
         if (hasToolCallTags(response.content)) {
-          // 提取 thinking 内容
-          const { cleanContent } = extractThinkingContent(response.content)
-
           // 解析 tool_call 标签
           const fallbackToolCalls = parseToolCallTags(response.content)
           if (fallbackToolCalls && fallbackToolCalls.length > 0) {
             toolCallsToProcess = fallbackToolCalls
           } else {
             // 解析失败，返回清理后的内容
-            aiLogger.info('Agent', 'AI 回复', cleanContent)
+            const sanitizedContent = stripToolCallTags(cleanContent)
+            aiLogger.info('Agent', 'AI 回复', sanitizedContent)
             return {
-              content: cleanContent,
+              content: sanitizedContent,
               toolsUsed: this.toolsUsed,
               toolRounds: this.toolRounds,
               totalUsage: this.totalUsage,
@@ -436,9 +604,9 @@ export class Agent {
           }
         } else {
           // 没有 tool_call 标签，正常完成
-          aiLogger.info('Agent', 'AI 回复', response.content)
+          aiLogger.info('Agent', 'AI 回复', cleanContent)
           return {
-            content: response.content,
+            content: cleanContent,
             toolsUsed: this.toolsUsed,
             toolRounds: this.toolRounds,
             totalUsage: this.totalUsage,
@@ -460,8 +628,9 @@ export class Agent {
 
     const finalResponse = await chat(this.messages, this.config.llmOptions)
     this.addUsage(finalResponse.usage)
+    const finalCleanContent = stripToolCallTags(extractThinkingContent(finalResponse.content).cleanContent)
     return {
-      content: finalResponse.content,
+      content: finalCleanContent,
       toolsUsed: this.toolsUsed,
       toolRounds: this.toolRounds,
       totalUsage: this.totalUsage,
@@ -509,10 +678,17 @@ export class Agent {
       }
 
       let accumulatedContent = ''
-      let displayedContent = '' // 已发送给前端的内容
+      let roundContent = ''
       let toolCalls: ToolCall[] | undefined
-      let isBufferingToolCall = false // 是否正在缓冲 tool_call 内容
-      let isBufferingThink = false // 是否正在缓冲 <think> 内容
+      const parser = createStreamParser({
+        onText: (text) => {
+          roundContent += text
+          onChunk({ type: 'content', content: text })
+        },
+        onThink: (text, tag) => {
+          onChunk({ type: 'think', content: text, thinkTag: tag })
+        },
+      })
 
       // 流式调用 LLM（传入 abortSignal）
       for await (const chunk of chatStream(this.messages, {
@@ -524,7 +700,7 @@ export class Agent {
         if (this.isAborted()) {
           onChunk({ type: 'done', isFinished: true, usage: this.totalUsage })
           return {
-            content: finalContent + accumulatedContent,
+            content: finalContent + roundContent,
             toolsUsed: this.toolsUsed,
             toolRounds: this.toolRounds,
             totalUsage: this.totalUsage,
@@ -532,57 +708,8 @@ export class Agent {
         }
         if (chunk.content) {
           accumulatedContent += chunk.content
-
-          // 检测是否开始出现 <think> 标签（过滤思考内容）
-          if (!isBufferingThink && /<think>/i.test(accumulatedContent)) {
-            isBufferingThink = true
-            // 发送 <think> 标签之前的内容
-            const thinkStart = accumulatedContent.toLowerCase().indexOf('<think>')
-            if (thinkStart > displayedContent.length) {
-              const newContent = accumulatedContent.slice(displayedContent.length, thinkStart)
-              if (newContent) {
-                onChunk({ type: 'content', content: newContent })
-                displayedContent = accumulatedContent.slice(0, thinkStart)
-              }
-            }
-          }
-
-          // 检测 </think> 结束标签，退出思考缓冲模式
-          if (isBufferingThink && /<\/think>/i.test(accumulatedContent)) {
-            isBufferingThink = false
-            // 跳过 <think>...</think> 内容，更新 displayedContent
-            const thinkEnd = accumulatedContent.toLowerCase().indexOf('</think>') + '</think>'.length
-            displayedContent = accumulatedContent.slice(0, thinkEnd)
-          }
-
-          // 如果正在缓冲思考内容，不发送
-          if (isBufferingThink) {
-            continue
-          }
-
-          // 检测是否开始出现 <tool_call> 标签（用于 fallback 解析）
-          if (!isBufferingToolCall) {
-            if (/<tool_call>/i.test(accumulatedContent)) {
-              isBufferingToolCall = true
-              // 发送标签之前的内容（如果有）
-              const tagStart = accumulatedContent.indexOf('<tool_call>')
-              if (tagStart > displayedContent.length) {
-                const newContent = accumulatedContent.slice(displayedContent.length, tagStart)
-                if (newContent) {
-                  onChunk({ type: 'content', content: newContent })
-                  displayedContent = accumulatedContent.slice(0, tagStart)
-                }
-              }
-            } else {
-              // 正常发送内容（但要排除已发送的部分）
-              const newContent = accumulatedContent.slice(displayedContent.length)
-              if (newContent) {
-                onChunk({ type: 'content', content: newContent })
-                displayedContent = accumulatedContent
-              }
-            }
-          }
-          // 如果已经在缓冲模式，不发送内容
+          // 按标签切分后输出到内容/思考区
+          parser.push(chunk.content)
         }
 
         if (chunk.tool_calls) {
@@ -595,6 +722,9 @@ export class Agent {
         }
 
         if (chunk.isFinished) {
+          // 收尾：清空解析器缓冲
+          parser.flush()
+
           // 如果没有标准 tool_calls，尝试 fallback 解析
           if (chunk.finishReason !== 'tool_calls' || !toolCalls) {
             // Fallback: 检查内容中是否有 <tool_call> 标签
@@ -606,16 +736,22 @@ export class Agent {
               const fallbackToolCalls = parseToolCallTags(accumulatedContent)
               if (fallbackToolCalls && fallbackToolCalls.length > 0) {
                 toolCalls = fallbackToolCalls
-                // 更新累积内容为清理后的内容（移除 think 和 tool_call 标签）
-                accumulatedContent = cleanContent.replace(/<tool_call>[\s\S]*?<\/tool_call>/gi, '').trim()
                 // 不返回，继续执行工具调用
               } else {
                 // 解析失败，作为普通响应处理
-                const remainingContent = cleanContent.slice(displayedContent.length)
-                if (remainingContent) {
-                  onChunk({ type: 'content', content: remainingContent })
+                const sanitizedContent = stripToolCallTags(cleanContent)
+                if (sanitizedContent.startsWith(roundContent)) {
+                  const remainingContent = sanitizedContent.slice(roundContent.length)
+                  if (remainingContent) {
+                    onChunk({ type: 'content', content: remainingContent })
+                  }
+                } else if (sanitizedContent) {
+                  aiLogger.warn('Agent', '流式内容与清理结果不一致，跳过补发', {
+                    roundContentLength: roundContent.length,
+                    sanitizedLength: sanitizedContent.length,
+                  })
                 }
-                finalContent = cleanContent
+                finalContent = sanitizedContent
                 aiLogger.info('Agent', 'AI 回复', finalContent)
                 onChunk({ type: 'done', isFinished: true, usage: this.totalUsage })
                 return {
@@ -627,7 +763,19 @@ export class Agent {
               }
             } else {
               // 没有 tool_call 标签，正常完成
-              finalContent = extractThinkingContent(accumulatedContent).cleanContent
+              const sanitizedContent = stripToolCallTags(extractThinkingContent(accumulatedContent).cleanContent)
+              if (sanitizedContent.startsWith(roundContent)) {
+                const remainingContent = sanitizedContent.slice(roundContent.length)
+                if (remainingContent) {
+                  onChunk({ type: 'content', content: remainingContent })
+                }
+              } else if (sanitizedContent) {
+                aiLogger.warn('Agent', '流式内容与清理结果不一致，跳过补发', {
+                  roundContentLength: roundContent.length,
+                  sanitizedLength: sanitizedContent.length,
+                })
+              }
+              finalContent = sanitizedContent
               aiLogger.info('Agent', 'AI 回复', finalContent)
               onChunk({ type: 'done', isFinished: true, usage: this.totalUsage })
               return {
@@ -640,6 +788,9 @@ export class Agent {
           }
         }
       }
+
+      // 兜底收尾：防止未收到 isFinished
+      parser.flush()
 
       // 处理工具调用
       if (toolCalls && toolCalls.length > 0) {
@@ -699,6 +850,16 @@ export class Agent {
     })
 
     // 最后一轮不带 tools（传入 abortSignal）
+    let finalRawContent = ''
+    const finalParser = createStreamParser({
+      onText: (text) => {
+        finalContent += text
+        onChunk({ type: 'content', content: text })
+      },
+      onThink: (text, tag) => {
+        onChunk({ type: 'think', content: text, thinkTag: tag })
+      },
+    })
     for await (const chunk of chatStream(this.messages, {
       ...this.config.llmOptions,
       abortSignal: this.abortSignal,
@@ -708,17 +869,35 @@ export class Agent {
         break
       }
       if (chunk.content) {
-        finalContent += chunk.content
-        onChunk({ type: 'content', content: chunk.content })
+        finalRawContent += chunk.content
+        finalParser.push(chunk.content)
       }
       // 累加 Token 使用量
       if (chunk.usage) {
         this.addUsage(chunk.usage)
       }
       if (chunk.isFinished) {
+        finalParser.flush()
+        const sanitizedContent = stripToolCallTags(extractThinkingContent(finalRawContent).cleanContent)
+        if (sanitizedContent.startsWith(finalContent)) {
+          const remainingContent = sanitizedContent.slice(finalContent.length)
+          if (remainingContent) {
+            finalContent += remainingContent
+            onChunk({ type: 'content', content: remainingContent })
+          }
+        } else if (sanitizedContent) {
+          aiLogger.warn('Agent', '最终内容与清理结果不一致，跳过补发', {
+            finalContentLength: finalContent.length,
+            sanitizedLength: sanitizedContent.length,
+          })
+          finalContent = sanitizedContent
+        }
         onChunk({ type: 'done', isFinished: true, usage: this.totalUsage })
       }
     }
+
+    // 兜底收尾：防止未收到 isFinished
+    finalParser.flush()
 
     return {
       content: finalContent,

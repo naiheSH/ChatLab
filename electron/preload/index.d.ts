@@ -403,8 +403,9 @@ interface TokenUsage {
 
 // Agent 相关类型
 interface AgentStreamChunk {
-  type: 'content' | 'tool_start' | 'tool_result' | 'done' | 'error'
+  type: 'content' | 'think' | 'tool_start' | 'tool_result' | 'done' | 'error'
   content?: string
+  thinkTag?: string
   toolName?: string
   toolParams?: Record<string, unknown>
   toolResult?: unknown
